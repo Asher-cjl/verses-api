@@ -1,0 +1,97 @@
+mod constants;
+mod error;
+mod models;
+mod routes;
+
+#[cfg(test)]
+mod tests;
+
+use actix_cors::Cors;
+use actix_web::middleware::Logger;
+use actix_files as fs;
+use actix_web::{web, App, HttpServer};
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+
+use crate::models::*;
+use crate::routes::*;
+
+#[derive(Debug, Clone)]
+pub struct AppData {
+    pub pool: PgPool,
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Scripture verses-api",
+    ),
+    paths(
+        home,
+        get_translations,
+        get_verses,
+        get_random_verse,
+        get_abbreviations,
+        get_books,
+        get_translation_info,
+        get_translation_books,
+        get_chaptercount,
+        get_chaptercount_book,
+        search,
+        get_next_page,
+    ),
+    components(schemas(
+        Hello,
+        TranslationInfo,
+        Verse,
+        VerseFilter,
+        TranslationSelector,
+        Book,
+        Count,
+        SearchParameters,
+        PageIn,
+        PageOut,
+        PrevNext,
+        BooksChapterCount
+    ))
+)]
+struct ApiDoc;
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let db_url = dotenvy::var("DATABASE_URL").unwrap();
+    let host = dotenvy::var("HOST").unwrap_or(String::from("0.0.0.0"));
+    let port_string = dotenvy::var("PORT").unwrap_or(String::from("7000"));
+    let port: u16 = port_string.parse().unwrap_or(8000);
+    let pool = PgPoolOptions::new().connect(db_url.as_str()).await.unwrap();
+    let app_data = AppData { pool };
+    let api_doc = ApiDoc::openapi();
+    env_logger::init();
+    println!("API server is listening on {}:{}", host, port);
+    let server = HttpServer::new(move || {
+        App::new()
+            .wrap(Cors::permissive())
+            .wrap(Logger::default())
+            .app_data(web::Data::new(app_data.clone()))
+            .service(routes::home)
+            .service(routes::get_verses)
+            .service(routes::get_abbreviations)
+            .service(routes::get_translations)
+            .service(routes::get_books)
+            .service(routes::get_translation_books)
+            .service(routes::get_translation_info)
+            .service(routes::get_chaptercount)
+            .service(routes::get_chaptercount_book)
+            .service(routes::get_random_verse)
+            .service(routes::search)
+            .service(routes::get_next_page)
+            .service(
+                SwaggerUi::new("/docs/{_:.*}").url("/docs/openapi.json", api_doc.clone()),
+            )
+            .service(web::redirect("/docs", "/verses/docs/"))
+            .service(fs::Files::new("/csv", "./csv").show_files_listing())
+    })
+    .bind((host,port))?;
+    return server.run().await;
+}
