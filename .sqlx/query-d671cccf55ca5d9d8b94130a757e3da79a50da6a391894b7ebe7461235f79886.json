@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name from \"TranslationBookName\" where translation_id=(select id from \"Translation\" where name=$1) order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d671cccf55ca5d9d8b94130a757e3da79a50da6a391894b7ebe7461235f79886"
+}
